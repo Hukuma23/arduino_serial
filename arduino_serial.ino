@@ -10,12 +10,25 @@
 #include "WaterMeter.h"
 #include <OneWire.h>
 #include <DHT.h>
+#include "wh2_lib/i2c_wh2.h"
+#include "wh2_lib/i2c_wh2.cpp"
+#include "wh2_lib/WH2Data.h"
 
 // The payload that will be sent to the other device
 
 #define WAIT_BEFORE_ANSWER  1
 #define WAIT_BEFORE_REPEAT  1
 #define LISTENER_INTERVAL   20
+
+
+
+// WH2 block **************************************************************
+
+I2C_WH2 wh2(600);
+uint16_t wh2_sensor_id = 0x45b;
+
+// End of WH2 block *******************************************************
+
 
 
 // Switches block *********************************************************
@@ -78,6 +91,14 @@ struct SerialMessage {
   //int16_t ds3;
   //int16_t ds4;
   //int16_t ds5;
+
+  int16_t wh2_temp1;
+  //int16_t wh2_temp2;
+  //int16_t wh2_temp3;
+
+  uint8_t wh2_hum1;
+  //uint8_t wh2_hum2;
+  //uint8_t wh2_hum3;
 
   int16_t water_hot;
   int16_t water_cold;
@@ -247,6 +268,7 @@ void processSerialMessage() {
     if ((objType == ObjectType::SENSORS) || (objType == ObjectType::ALL)) { // Won't check for (payload.objId == ObjectId::ALL)
       dhtRead(&dhtTemp, &dhtHum);
       readDSSensors(dsAddr, dsTemperature, (sizeof dsAddr / sizeof dsAddr[0]));
+      wh2.read();
     }
     else if (objType == ObjectType::DHT) {
       dhtRead(&dhtTemp, &dhtHum);
@@ -507,6 +529,16 @@ void cookSensorsPayload() {
   payload.water_hot = hot.getCounterReset();
   payload.water_cold = cold.getCounterReset();
 
+  WH2 data = wh2.get(wh2_sensor_id);
+  if (data.id == wh2_sensor_id) {
+    payload.wh2_temp1 = data.temperature*10;
+    payload.wh2_hum1 = data.humidity;
+  } else {
+    payload.wh2_temp1 = UNDEF;
+    payload.wh2_hum1 = UNDEF;
+  }
+
+
   DEBUG_PRINT("dht_temp=");
   DEBUG_PRINTLN(payload.dht_temp);
   DEBUG_PRINT("dht_hum=");
@@ -519,6 +551,10 @@ void cookSensorsPayload() {
   DEBUG_PRINTLN(payload.water_hot);
   DEBUG_PRINT("cold_water=");
   DEBUG_PRINTLN(payload.water_cold);
+  DEBUG_PRINT("wh2_temp1=");
+  DEBUG_PRINTLN(payload.wh2_temp1);
+  DEBUG_PRINT("wh2_hum1=");
+  DEBUG_PRINTLN(payload.wh2_hum1);
 }
 
 void cookSwitchesPayload() {
